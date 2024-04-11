@@ -70,7 +70,7 @@ static void ip_event_handler(void* arg, esp_event_base_t event_base,
 }
 
 // connect to wifi and return the result
-esp_err_t connect_wifi(const char* ssid, const char* password)
+esp_err_t connect_wifi()
 {
 	int status = WIFI_FAILURE;
 
@@ -108,8 +108,8 @@ esp_err_t connect_wifi(const char* ssid, const char* password)
     /** START THE WIFI DRIVER **/
     wifi_config_t wifi_config = {
         .sta = {
-            .ssid = ssid,
-            .password = password,
+            .ssid = "Add SSIS here",
+            .password = "Add Password here",
 	    .threshold.authmode = WIFI_AUTH_WPA2_PSK,
             .pmf_cfg = {
                 .capable = true,
@@ -181,8 +181,6 @@ void perform_ota_update(const char* firmware_url) {
 
 void app_main(void) {
 	
-	const char* ssid = "";         /* Your SSID */
-	const char* password = "";     /* WiFi Password */
 	const char* firmware_url = ""; /* URL to retrieve the new firmware */
 
 	esp_err_t status = WIFI_FAILURE;
@@ -197,7 +195,7 @@ void app_main(void) {
 	ESP_ERROR_CHECK(ret);
 
 	// connect to wireless AP
-	status = connect_wifi(ssid, password);
+	status = connect_wifi();
 	if (WIFI_SUCCESS != status) {
 		ESP_LOGI(TAG, "Failed to associate to AP, dying...");
 		return;
