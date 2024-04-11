@@ -20,11 +20,27 @@
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
 
+#include "esp_http_server.h"
+
 #define WIFI_SUCCESS 1 << 0
 #define WIFI_FAILURE 1 << 1
 #define MAX_FAILURES 10
 
 /** GLOBALS **/
+
+const char* firmware_url = "https://192.168.8.60:8000";
+
+wifi_config_t wifi_config = {
+	.sta = {
+		.ssid = "nbfc-priv",
+		.password = "Add password here",
+		.threshold.authmode = WIFI_AUTH_WPA2_PSK,
+		.pmf_cfg = {
+			.capable = true,
+			.required = false
+		},
+	},
+};
 
 // event group to contain status information
 static EventGroupHandle_t wifi_event_group;
@@ -105,19 +121,6 @@ esp_err_t connect_wifi()
                                                         NULL,
                                                         &got_ip_event_instance));
 
-    /** START THE WIFI DRIVER **/
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = "Add SSIS here",
-            .password = "Add Password here",
-	    .threshold.authmode = WIFI_AUTH_WPA2_PSK,
-            .pmf_cfg = {
-                .capable = true,
-                .required = false
-            },
-        },
-    };
-
     // set the wifi controller to be a station
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
 
@@ -179,9 +182,45 @@ void perform_ota_update(const char* firmware_url) {
     }
 }
 
+esp_err_t get_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "--Received Update Request--");
+    
+    const char resp[] = "Nubificus/ESP32 received the request: About to update.\n";
+    
+    httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
+    
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
+    
+    perform_ota_update(firmware_url);
+
+    return ESP_OK;
+}
+
+/* URI handler structure for GET /update */
+httpd_uri_t uri_get = {
+    .uri      = "/update",
+    .method   = HTTP_GET,
+    .handler  = get_handler,
+    .user_ctx = NULL
+};
+
+httpd_handle_t start_webserver(void) {
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+
+    httpd_handle_t server = NULL;
+
+    if (httpd_start(&server, &config) == ESP_OK) 
+	httpd_register_uri_handler(server, &uri_get);
+        
+    return server;
+}
+
+void stop_webserver(httpd_handle_t server) {
+    if (server)
+        httpd_stop(server);
+}
+
 void app_main(void) {
-	
-	const char* firmware_url = ""; /* URL to retrieve the new firmware */
 
 	esp_err_t status = WIFI_FAILURE;
 
@@ -201,10 +240,11 @@ void app_main(void) {
 		return;
 	}
 
-    	perform_ota_update(firmware_url);
+	if (start_webserver() == NULL)
+		ESP_LOGI(TAG, "---HTTP Server can't start---");
 
 	while (1) {
-		vTaskDelay(100);
+		vTaskDelay(1000);
 	}
 }
 
