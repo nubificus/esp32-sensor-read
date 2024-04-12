@@ -42,10 +42,11 @@ cd esp-idf
 . ./export.sh
 # You have to run the last command every time the environment variables are lost.
 ```
-**Create the project**
+**Download the project**
 ```
 mkdir projects && cd projects
 git clone https://github.com/nubificus/esp32-ota-update.git
+cd esp32-ota-update
 ```
 **Build and Flash**
 ```
