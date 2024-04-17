@@ -1,0 +1,55 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the "main" branch
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+    types:
+      - synchronize
+      - labeled
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: [self-hosted, x86_64]
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'ok-to-test') }}
+    steps:
+      - name: Cleanup previous jobs
+        run: |
+          echo "Cleaning up previous runs"
+          sudo rm -rf ${{ github.workspace }}/*
+          sudo rm -rf ${{ github.workspace }}/.??*
+
+      - uses: actions/checkout@v3
+
+      - name: Build Firmware
+        uses: addnab/docker-run-action@v3
+        id: build_firmware
+        with:
+          image: harbor.nbfc.io/nubificus/esp-idf:x86_64
+          options: -v ${{ github.workspace }}:/work --privileged
+          run: |
+            cd /esp-idf && . ./export.sh
+            cd /work
+            idf.py build
+
+      - name: Upload plugin to s3
+        uses: cloudkernels/minio-upload@v4
+        with:
+          url: https://s3.nubificus.co.uk
+          access-key: ${{ secrets.AWS_ACCESS_KEY }}
+          secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          local-path: build/ota.bin
+          remote-path: nbfc-assets/github/iot/${{ github.event.repository.name }}/
+          policy: 1
+
