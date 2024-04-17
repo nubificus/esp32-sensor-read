@@ -1,5 +1,4 @@
 #include <stdio.h>
-
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -17,18 +16,11 @@
 #include "lwip/dns.h"
 
 #include "esp_ota_ops.h"
-#include "esp_http_client.h"
-#include "esp_https_ota.h"
-
-#include "esp_http_server.h"
 
 #define WIFI_SUCCESS 1 << 0
 #define WIFI_FAILURE 1 << 1
 #define MAX_FAILURES 10
-
-/** GLOBALS **/
-
-const char* firmware_url = "https://192.168.8.60:8000";
+#define PORT 3333
 
 wifi_config_t wifi_config = {
 	.sta = {
@@ -42,38 +34,31 @@ wifi_config_t wifi_config = {
 	},
 };
 
-// event group to contain status information
 static EventGroupHandle_t wifi_event_group;
 
-// retry tracker
 static int s_retry_num = 0;
 
-// task tag
 static const char *TAG = "main";
-/** FUNCTIONS **/
 
 //event handler for wifi events
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
-                                int32_t event_id, void* event_data)
-{
-	if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
-	{
+                                int32_t event_id, void* event_data) {
+	if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
 		ESP_LOGI(TAG, "Connecting to AP...");
 		esp_wifi_connect();
-	} else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
-	{
-		if (s_retry_num < MAX_FAILURES)
-		{
+	} 
+	else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+		if (s_retry_num < MAX_FAILURES) {
 			ESP_LOGI(TAG, "Reconnecting to AP...");
 			esp_wifi_connect();
 			s_retry_num++;
-		} else {
+		} 
+		else {
 			xEventGroupSetBits(wifi_event_group, WIFI_FAILURE);
 		}
 	}
 }
 
-//event handler for ip events
 static void ip_event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data) {
 	
@@ -85,146 +70,205 @@ static void ip_event_handler(void* arg, esp_event_base_t event_base,
 	}
 }
 
-// connect to wifi and return the result
-esp_err_t connect_wifi()
-{
+esp_err_t connect_wifi() {
 	int status = WIFI_FAILURE;
 
-	/** INITIALIZE ALL THE THINGS **/
-	//initialize the esp network interface
 	ESP_ERROR_CHECK(esp_netif_init());
 
-	//initialize default esp event loop
 	ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-	//create wifi station in the wifi driver
 	esp_netif_create_default_wifi_sta();
 
-	//setup wifi station with the default wifi configuration
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    
+	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-    /** EVENT LOOP CRAZINESS **/
 	wifi_event_group = xEventGroupCreate();
 
-    esp_event_handler_instance_t wifi_handler_event_instance;
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+	esp_event_handler_instance_t wifi_handler_event_instance;
+	ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
                                                         ESP_EVENT_ANY_ID,
                                                         &wifi_event_handler,
                                                         NULL,
                                                         &wifi_handler_event_instance));
 
-    esp_event_handler_instance_t got_ip_event_instance;
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+	esp_event_handler_instance_t got_ip_event_instance;
+	ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
                                                         IP_EVENT_STA_GOT_IP,
                                                         &ip_event_handler,
                                                         NULL,
                                                         &got_ip_event_instance));
 
-    // set the wifi controller to be a station
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
+	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
 
-    // set the wifi config
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
+	ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
 
-    // start the wifi driver
-    ESP_ERROR_CHECK(esp_wifi_start());
+	ESP_ERROR_CHECK(esp_wifi_start());
 
-    ESP_LOGI(TAG, "STA initialization complete");
+	ESP_LOGI(TAG, "STA initialization complete");
 
-    /** NOW WE WAIT **/
-    EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
-            WIFI_SUCCESS | WIFI_FAILURE,
-            pdFALSE,
-            pdFALSE,
-            portMAX_DELAY);
+	EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
+		WIFI_SUCCESS | WIFI_FAILURE,
+		pdFALSE,
+		pdFALSE,
+		portMAX_DELAY
+	);
 
-    /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
-     * happened. */
-    if (bits & WIFI_SUCCESS) {
-        ESP_LOGI(TAG, "Connected to ap");
-        status = WIFI_SUCCESS;
-    } else if (bits & WIFI_FAILURE) {
-        ESP_LOGI(TAG, "Failed to connect to ap");
-        status = WIFI_FAILURE;
-    } else {
-        ESP_LOGE(TAG, "UNEXPECTED EVENT");
-        status = WIFI_FAILURE;
+	if (bits & WIFI_SUCCESS) {
+		ESP_LOGI(TAG, "Connected to ap");
+		status = WIFI_SUCCESS;
+	} 
+	else if (bits & WIFI_FAILURE) {
+		ESP_LOGI(TAG, "Failed to connect to ap");
+		status = WIFI_FAILURE;
+	} 
+	else {
+		ESP_LOGE(TAG, "UNEXPECTED EVENT");
+		status = WIFI_FAILURE;
+	}
+
+	ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, got_ip_event_instance));
+	ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_handler_event_instance));
+	vEventGroupDelete(wifi_event_group);
+	return status;
+}
+
+static esp_partition_t* update_partition = NULL;
+static esp_ota_handle_t update_handle = 0;
+static size_t partition_data_written  = 0;
+
+void ota_process_begin() {
+	update_partition = esp_ota_get_next_update_partition(NULL);
+	assert(update_partition != NULL);
+
+	esp_err_t err = esp_ota_begin(update_partition, OTA_WITH_SEQUENTIAL_WRITES, &update_handle);
+        if (err != ESP_OK) {
+		ESP_LOGE(TAG, "esp_ota_begin() failed (%s)", esp_err_to_name(err));
+		esp_ota_abort(update_handle);
+		while(1)
+			vTaskDelay(1000);
+	}
+	
+	ESP_LOGI(TAG, "esp_ota_begin succeeded");
+}
+
+void ota_append_data_to_partition(unsigned char* data, size_t len) {
+
+	if (esp_ota_write(update_handle, (const void*) data, len) != ESP_OK) {
+                esp_ota_abort(update_handle);
+		ESP_LOGE(TAG, "esp_ota_write() failed");
+		while(1)
+			vTaskDelay(1000);
+	}
+	partition_data_written += len;
+}
+
+void ota_setup_partition_and_reboot() {
+	
+	ESP_LOGI(TAG, "Total bytes read: %d", partition_data_written);
+
+	esp_err_t err = esp_ota_end(update_handle);
+	if (err != ESP_OK) {
+		if (err == ESP_ERR_OTA_VALIDATE_FAILED) 
+			ESP_LOGE(TAG, "Image validation failed, image is corrupted");
+		else 
+			ESP_LOGE(TAG, "esp_ota_end failed (%s)!", esp_err_to_name(err));
+        	
+		while (1)
+			vTaskDelay(1000);
+	}
+	
+	err = esp_ota_set_boot_partition(update_partition);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (%s)!", esp_err_to_name(err));
+		while (1)
+			vTaskDelay(1000);
+	}
+	ESP_LOGI(TAG, "Prepare to restart system!");
+
+	vTaskDelay(4000 / portTICK_PERIOD_MS);
+	
+	esp_restart();
+}
+
+int ota_write_partition_from_tcp_stream() {
+    unsigned char rx_buffer[1024];
+    char addr_str[128];
+    int addr_family;
+    int ip_protocol;
+
+    struct sockaddr_in destAddr;
+    destAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    destAddr.sin_family = AF_INET;
+    destAddr.sin_port = htons(PORT);
+    addr_family = AF_INET;
+    ip_protocol = IPPROTO_IP;
+    inet_ntoa_r(destAddr.sin_addr, addr_str, sizeof(addr_str) - 1);
+
+    int listen_sock = socket(addr_family, SOCK_STREAM, ip_protocol);
+    if (listen_sock < 0) {
+        ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
+        vTaskDelete(NULL);
+        return -1;
     }
+    ESP_LOGI(TAG, "Socket created");
 
-    /* The event will not be processed after unregister */
-    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, got_ip_event_instance));
-    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_handler_event_instance));
-    vEventGroupDelete(wifi_event_group);
-
-    return status;
-}
-
-
-extern const char * server_cert_pem_start[] asm("_binary_ca_cert_pem_start");
-extern const char * server_cert_pem_end[] asm("_binary_ca_cert_pem_end");
-
-void perform_ota_update(const char* firmware_url) {
-    esp_http_client_config_t http_config = {
-        .url = firmware_url,
-	.cert_pem = server_cert_pem_start,
-    };
-
-    esp_https_ota_config_t ota_config = {
-        .http_config = &http_config,
-    };  
-
-    esp_err_t ret = esp_https_ota(&ota_config);
-    if (ret == ESP_OK) {
-        esp_restart();
-    } else {
-        ESP_LOGI(TAG, "Failed to perform over the air update: %s", esp_err_to_name(ret));
+    int err = bind(listen_sock, (struct sockaddr*) &destAddr, sizeof(destAddr));
+    if (err != 0) {
+        ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
+        ESP_LOGE(TAG, "IPPROTO: %d", ip_protocol);
+        close(listen_sock);
+        vTaskDelete(NULL);
+        return -1;
     }
-}
+    ESP_LOGI(TAG, "Socket bound, port %d", PORT);
 
-esp_err_t get_handler(httpd_req_t *req) {
-    ESP_LOGI(TAG, "--Received Update Request--");
+    err = listen(listen_sock, 1);
+    if (err != 0) {
+        ESP_LOGE(TAG, "Error occurred during listen: errno %d", errno);
+        close(listen_sock);
+        vTaskDelete(NULL);
+        return -1;
+    }
     
-    const char resp[] = "Nubificus/ESP32 received the request: About to update.\n";
-    
-    httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
-    
-    vTaskDelay(3000 / portTICK_PERIOD_MS);
-    
-    perform_ota_update(firmware_url);
-
-    return ESP_OK;
-}
-
-/* URI handler structure for GET /update */
-httpd_uri_t uri_get = {
-    .uri      = "/update",
-    .method   = HTTP_GET,
-    .handler  = get_handler,
-    .user_ctx = NULL
-};
-
-httpd_handle_t start_webserver(void) {
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-
-    httpd_handle_t server = NULL;
-
-    if (httpd_start(&server, &config) == ESP_OK) 
-	httpd_register_uri_handler(server, &uri_get);
+    ESP_LOGI(TAG, "Socket listening");
+    struct sockaddr_in sourceAddr;
+    uint addrLen = sizeof(sourceAddr);
+    int sock = accept(listen_sock, (struct sockaddr *)&sourceAddr, &addrLen);
+    if (sock < 0) {
+	    ESP_LOGE(TAG, "Unable to accept connection: errno %d", errno);
+	    return -1;
+    }
+  
+    ESP_LOGI(TAG, "Socket accepted");
         
-    return server;
-}
+    while (1) {
+	    int len = recv(sock, rx_buffer, sizeof(rx_buffer), 0);
+            if (len < 0) {
+                ESP_LOGE(TAG, "recv failed: errno %d", errno);
+                return -1;
+            } 
+	    else if (len == 0) {
+                ESP_LOGI(TAG, "Connection closed");
+                break;
+            } 
+	    else 
+                ota_append_data_to_partition(rx_buffer, len);
+    }
 
-void stop_webserver(httpd_handle_t server) {
-    if (server)
-        httpd_stop(server);
+    ESP_LOGI(TAG, "Closing the socket...");
+    shutdown(sock, 0);
+    close(sock);
+       
+    ESP_LOGI(TAG, "Now all the data has been received");
+    
+    return 1;
 }
 
 void app_main(void) {
 
 	esp_err_t status = WIFI_FAILURE;
 
-	//initialize storage
 	esp_err_t ret = nvs_flash_init();
 	if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
 		ESP_ERROR_CHECK(nvs_flash_erase());
@@ -233,18 +277,18 @@ void app_main(void) {
     
 	ESP_ERROR_CHECK(ret);
 
-	// connect to wireless AP
 	status = connect_wifi();
 	if (WIFI_SUCCESS != status) {
 		ESP_LOGI(TAG, "Failed to associate to AP, dying...");
 		return;
 	}
 
-	if (start_webserver() == NULL)
-		ESP_LOGI(TAG, "---HTTP Server can't start---");
+	ota_process_begin();
 
-	while (1) {
-		vTaskDelay(1000);
+	if (ota_write_partition_from_tcp_stream() < 0) {
+		ESP_LOGE(TAG, "Failed to update");
+		while (1) vTaskDelay(1000);
 	}
+	
+	ota_setup_partition_and_reboot();
 }
-
