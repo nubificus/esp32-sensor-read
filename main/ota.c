@@ -24,7 +24,7 @@
 wifi_config_t wifi_config = {
 	.sta = {
 		.ssid = "nbfc-priv",
-		.password = "yourpasshere",
+		.password = "add passwd",
 		.threshold.authmode = WIFI_AUTH_WPA2_PSK,
 		.pmf_cfg = {
 			.capable = true,
@@ -288,20 +288,16 @@ int ota_write_partition_from_tcp_stream()
 
 void ota_task(void *param)
 {
-	ESP_ERROR_CHECK(nvs_flash_init());
-	ESP_ERROR_CHECK(esp_netif_init());
-	ESP_ERROR_CHECK(esp_event_loop_create_default());
-	if (connect_wifi() == WIFI_SUCCESS)
-	{
 		ota_process_begin();
-		ota_write_partition_from_tcp_stream();
+
+		if (ota_write_partition_from_tcp_stream() < 0) {
+			ESP_LOGE(TAG, "Failed to update");
+			while (1) vTaskDelay(1000);
+		}
+
 		ota_setup_partition_and_reboot();
-	}
-	else
-	{
-		ESP_LOGE(TAG, "Wi-Fi connection failed, aborting OTA update");
-	}
-	vTaskDelete(NULL);
+
+		vTaskDelete(NULL);
 }
 
 void http_server_task(void *pvParameters)
@@ -324,6 +320,21 @@ void http_server_task(void *pvParameters)
 
 void app_main(void)
 {
+	esp_err_t status = WIFI_FAILURE;
+
+	esp_err_t ret = nvs_flash_init();
+	if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+		ESP_ERROR_CHECK(nvs_flash_erase());
+		ret = nvs_flash_init();
+	}
+
+	ESP_ERROR_CHECK(ret);
+	status = connect_wifi();
+	if (WIFI_SUCCESS != status) {
+		ESP_LOGI(TAG, "Failed to associate to AP, dying...");
+		return;
+	}
+
 	// Create OTA task
 	xTaskCreate(ota_task, "ota_task", 8192, NULL, 5, NULL);
 
