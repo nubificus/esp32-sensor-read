@@ -6,6 +6,7 @@
 esp_err_t hello_get_handler(httpd_req_t *req);
 esp_err_t temp_get_handler(httpd_req_t *req);
 esp_err_t version_get_handler(httpd_req_t *req);
+esp_err_t device_get_handler(httpd_req_t *req);
 
 httpd_handle_t start_webserver(void);
 void stop_webserver(httpd_handle_t server);

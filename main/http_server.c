@@ -25,10 +25,18 @@ esp_err_t temp_get_handler(httpd_req_t *req)
 
 esp_err_t version_get_handler(httpd_req_t *req)
 {
-    const char* resp_str = "alpha";
+    const char* resp_str = "0.1.0-alpha";
     httpd_resp_send(req, resp_str, strlen(resp_str));
     return ESP_OK;
 }
+
+esp_err_t device_get_handler(httpd_req_t *req)
+{
+    const char* resp_str = "esp32s2";
+    httpd_resp_send(req, resp_str, strlen(resp_str));
+    return ESP_OK;
+}
+
 
 httpd_uri_t hello = {
     .uri       = "/",
@@ -51,6 +59,13 @@ httpd_uri_t version = {
     .user_ctx  = NULL
 };
 
+httpd_uri_t device = {
+    .uri       = "/device",
+    .method    = HTTP_GET,
+    .handler   = device_get_handler,
+    .user_ctx  = NULL
+};
+
 httpd_handle_t start_webserver(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -60,6 +75,7 @@ httpd_handle_t start_webserver(void)
         httpd_register_uri_handler(server, &hello);
         httpd_register_uri_handler(server, &temp);
         httpd_register_uri_handler(server, &version);
+        httpd_register_uri_handler(server, &device);
     }
     return server;
 }
