@@ -48,8 +48,26 @@ cd esp32-ota-update
 ```
 **Build and Flash**
 ```
+export FIRMWARE_VERSION="0.1.0"
+export DEVICE_TYPE="esp32s2"
+export APPLICATION_TYPE="thermo"
 idf.py build
 idf.py flash monitor
+```
+
+**Create Docker image**
+
+```bash
+export FIRMWARE_VERSION="0.1.0"
+export DEVICE_TYPE="esp32s2"
+export APPLICATION_TYPE="thermo"
+tee Dockerfile > /dev/null << 'EOT'
+FROM scratch
+COPY ./build/ota.bin /firmware/ota.bin
+LABEL "com.urunc.iot.path"="/firmware/ota.bin"
+EOT
+docker build --push -t harbor.nbfc.io/nubificus/$APPLICATION_TYPE-$DEVICE_TYPE-firmware:$FIRMWARE_VERSION .
+rm -f Dockerfile
 ```
 
 **You may have to define the port explicitly**

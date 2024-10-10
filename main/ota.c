@@ -24,7 +24,7 @@
 wifi_config_t wifi_config = {
 	.sta = {
 		.ssid = "nbfc-priv",
-		.password = "add passwd",
+		.password = "your pass",
 		.threshold.authmode = WIFI_AUTH_WPA2_PSK,
 		.pmf_cfg = {
 			.capable = true,
