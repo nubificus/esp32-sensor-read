@@ -165,18 +165,24 @@ int main(int argc, char *argv[]) {
 ```
 
 Don't forget to change **SERVER_IP**. Then, you can build and run the program using the following commands:
-```
+
+```bash
 gcc -o client tcp_client.c
 ./client /path/to/file.bin
 ```
+
 ## Simple Firmware to use for Update
+
 Now we also need to create a simple firmware image, which will be sent by the server to update ESP32. We can do it using the following commands:
-```
+
+```bash
 cd ~/esp-idf/projects
 idf.py create-project dummy-firmware
 cd dummy-firmware
 ```
+
 Now replace `~/esp-idf/projects/dummy-firmware/main/dummy-firmware.c` with the following lines:
+
 ```c
 #include <stdio.h>
 #include <freertos/FreeRTOS.h>
@@ -190,6 +196,7 @@ void app_main(void)
 	}
 }
 ```
+
 **And Build it**
 ```
 idf.py build
@@ -200,4 +207,58 @@ Therefore, you can use that file for the ota update by providing the path when r
 ./client ~/esp-idf/projects/dummy-firmware/build/dummy-firmware.bin
 ```
 
+## Multi-platform image building
 
+```bash
+git clone -b feat_http_server git@github.com:nubificus/esp32-ota-update.git
+cd esp32-ota-update
+mkdir -p dist/esp32s2
+tee env.list > /dev/null << 'EOT'
+FIRMWARE_VERSION=0.2.0
+DEVICE_TYPE=esp32s2
+APPLICATION_TYPE=thermo
+EOT
+docker run --rm -v $PWD:/project -w /project espressif/idf:latest idf.py set-target esp32s2
+docker run --rm -v $PWD:/project -w /project --env-file ./env.list espressif/idf:latest idf.py build
+sudo mv build/ota.bin dist/esp32s2/ota.bin
+
+mkdir -p dist/esp32s3
+tee env.list > /dev/null << 'EOT'
+FIRMWARE_VERSION=0.2.0
+DEVICE_TYPE=esp32s3
+APPLICATION_TYPE=thermo
+EOT
+docker run --rm -v $PWD:/project -w /project espressif/idf:latest idf.py set-target esp32s3
+docker run --rm -v $PWD:/project -w /project --env-file ./env.list espressif/idf:latest idf.py build
+sudo mv build/ota.bin dist/esp32s3/ota.bin
+
+mkdir -p dist/esp32
+tee env.list > /dev/null << 'EOT'
+FIRMWARE_VERSION=0.2.0
+DEVICE_TYPE=esp32
+APPLICATION_TYPE=thermo
+EOT
+docker run --rm -v $PWD:/project -w /project espressif/idf:latest idf.py set-target esp32
+docker run --rm -v $PWD:/project -w /project --env-file ./env.list espressif/idf:latest idf.py build
+sudo mv build/ota.bin dist/esp32/ota.bin
+
+sudo chown -R $USER dist
+
+tee Dockerfile > /dev/null << 'EOT'
+FROM scratch
+ARG DEVICE
+COPY dist/${DEVICE}/ota.bin /firmware/ota.bin
+LABEL "com.urunc.iot.path"="/firmware/ota.bin"
+EOT
+
+docker buildx build --platform custom/esp32 -t harbor.nbfc.io/nubificus/iot/esp32-thermo-firmware:0.2.0-esp32 --build-arg DEVICE=esp32 . --push --provenance false
+docker buildx build --platform custom/esp32s2 -t harbor.nbfc.io/nubificus/iot/esp32-thermo-firmware:0.2.0-esp32s2 --build-arg DEVICE=esp32s2 . --push --provenance false
+docker buildx build --platform custom/esp32s3 -t harbor.nbfc.io/nubificus/iot/esp32-thermo-firmware:0.2.0-esp32s3 --build-arg DEVICE=esp32s3 . --push --provenance false
+
+docker manifest create harbor.nbfc.io/nubificus/iot/esp32-thermo-firmware:0.2.0 \
+  --amend harbor.nbfc.io/nubificus/iot/esp32-thermo-firmware:0.2.0-esp32 \
+  --amend harbor.nbfc.io/nubificus/iot/esp32-thermo-firmware:0.2.0-esp32s2 \
+  --amend harbor.nbfc.io/nubificus/iot/esp32-thermo-firmware:0.2.0-esp32s3
+
+docker manifest push harbor.nbfc.io/nubificus/iot/esp32-thermo-firmware:0.2.0
+```
