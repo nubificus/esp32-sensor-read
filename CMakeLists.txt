@@ -27,4 +27,18 @@ else()
         message(WARNING "APPLICATION_TYPE is not set, using default value")
 endif()
 
+if(DEFINED ENV{WIFI_SSID})
+	add_compile_definitions(WIFI_SSID=\"$ENV{WIFI_SSID}\")
+else()
+	add_compile_definitions(WIFI_SSID="guest")
+	message(WARNING "WIFI_SSID is not set, using default value")
+endif()
+
+if(DEFINED ENV{WIFI_PASS})
+	add_compile_definitions(WIFI_PASS=\"$ENV{WIFI_PASS}\")
+else()
+	add_compile_definitions(WIFI_PASS="guest")
+	message(WARNING "WIFI_PASS is not set, using default value")
+endif()
+
 project(ota)
