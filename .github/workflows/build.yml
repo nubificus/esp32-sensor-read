@@ -31,6 +31,59 @@ jobs:
           sudo rm -rf ${{ github.workspace }}/.??*
 
       - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive' 
+          token: ${{ secrets.ORG_PAT }}
+
+      - name: Parse CMakeLists.txt to determine binary output
+        id: parse_cmakelists
+        run: |
+          if [ -f "CMakeLists.txt" ]; then
+            project_name=$(grep -m1 -oP '(?<=project\().*?(?=\))' CMakeLists.txt | tr -d ' ' || true)
+            binary_name=$(grep -m1 -oP '(?<=add_executable\().*?(?=\s)' CMakeLists.txt | tr -d ' ' || true)
+
+            if [ -z "$binary_name" ]; then
+              if [ -z "$project_name" ]; then
+                echo "No project or binary name found, defaulting to ota.bin"
+                BINARY_PATH="build/ota.bin"
+              else
+                echo "Project name found: $project_name"
+                BINARY_PATH="build/$project_name.bin"
+              fi
+            else
+              echo "Binary name found: $binary_name"
+              BINARY_PATH="build/$binary_name.bin"
+            fi
+          else
+            echo "CMakeLists.txt not found, defaulting to ota.bin"
+            BINARY_PATH="build/ota.bin"
+          fi
+          echo "BINARY_PATH=$BINARY_PATH" >> $GITHUB_ENV
+          BINARY_NAME=$(basename $BINARY_PATH)
+          echo "BINARY_NAME=$BINARY_NAME" >> $GITHUB_ENV
+
+
+      - name: Build Secure Firmware
+        uses: addnab/docker-run-action@v3
+        id: build_secure_firmware
+        with:
+          image: harbor.nbfc.io/nubificus/esp-idf:x86_64
+          options: -v ${{ github.workspace }}:/work --privileged
+          run: |
+            cd /esp-idf && . ./export.sh
+            cd /work
+            export OTA_SECURE=1
+            idf.py build
+
+      - name: Upload plugin to s3
+        uses: cloudkernels/minio-upload@v4
+        with:
+          url: https://s3.nubificus.co.uk
+          access-key: ${{ secrets.AWS_ACCESS_KEY }}
+          secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          local-path: ${{ env.BINARY_PATH }}
+          remote-path: nbfc-assets/github/iot/${{ github.event.repository.name }}/${{ env.BINARY_NAME }}-secure
+          policy: 1
 
       - name: Build Firmware
         uses: addnab/docker-run-action@v3
@@ -49,7 +102,8 @@ jobs:
           url: https://s3.nubificus.co.uk
           access-key: ${{ secrets.AWS_ACCESS_KEY }}
           secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          local-path: build/ota.bin
-          remote-path: nbfc-assets/github/iot/${{ github.event.repository.name }}/
+          local-path: ${{ env.BINARY_PATH }}
+          remote-path: nbfc-assets/github/iot/${{ github.event.repository.name }}/${{ env.BINARY_NAME }}
           policy: 1
+
 
