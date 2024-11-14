@@ -1,5 +1,5 @@
 idf_component_register(
-	SRCS "http_server.c" "ota.c" 
+	SRCS "http_server.c" "wifi.c" "ota.c" 
 	INCLUDE_DIRS "." 
-	REQUIRES esp_partition app_update esp_netif esp_wifi nvs_flash esp_http_server
+	REQUIRES esp_partition app_update esp_netif esp_wifi nvs_flash esp_http_server ota-service esp32-akri
 )
