@@ -41,4 +41,11 @@ else()
 	message(WARNING "WIFI_PASS is not set, using default value")
 endif()
 
+if(DEFINED ENV{OTA_SECURE})
+	add_compile_definitions(OTA_SECURE="1")
+	message("Secure OTA update enabled")
+else()
+	message(WARNING "Secure OTA update disabled")
+endif()
+
 project(esp32-ota-update)
