@@ -1,0 +1,3 @@
+[submodule "components/esp32-akri"]
+	path = components/esp32-akri
+	url = https://github.com/nubificus/esp32-akri
