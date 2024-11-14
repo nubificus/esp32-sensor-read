@@ -41,4 +41,4 @@ else()
 	message(WARNING "WIFI_PASS is not set, using default value")
 endif()
 
-project(ota)
+project(esp32-ota-update)
