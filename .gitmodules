@@ -1,6 +1,6 @@
 [submodule "components/esp32-akri"]
 	path = components/esp32-akri
-	url = https://github.com/nubificus/esp32-akri
+	url = git@github.com:nubificus/esp32-akri
 [submodule "components/ota-service"]
 	path = components/ota-service
-	url = https://github.com/nubificus/ota-service
+	url = git@github.com:nubificus/ota-service
