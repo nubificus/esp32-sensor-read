@@ -64,5 +64,11 @@ void app_main(void)
 		abort();
 	}
 
+	ret = akri_set_onboard_handler(onboard_request_handler);
+	if (ret) {
+		ESP_LOGE(TAG, "Cannot set onboard handler");
+		abort();
+	}
+
 	while (1) vTaskDelay(1000);
 }
