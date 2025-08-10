@@ -48,4 +48,11 @@ else()
 	message(WARNING "Secure OTA update disabled")
 endif()
 
-project(esp32-ota-update)
+if(DEFINED ENV{TEMP_START})
+	add_compile_definitions(TEMP_START=\"$ENV{TEMP_START}\")
+	message("Secure OTA update enabled")
+else()
+	add_compile_definitions(TEMP_START="20")
+endif()
+
+project(esp32-sensor-read)
