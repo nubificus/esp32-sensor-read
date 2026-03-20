@@ -1,0 +1,5 @@
+# ESP32-C6 specific configuration - ESP-IDF 6.0
+# ESP32-C6 is a RISC-V MCU with native IEEE 802.11b/g/n/ax WiFi (WiFi 6)
+# Standard C6 dev boards have no external PSRAM; disable SPIRAM from base config.
+# No esp_hosted/wifi_remote needed: native WiFi stack is used directly.
+# CONFIG_SPIRAM is not set
